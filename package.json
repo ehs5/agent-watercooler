@@ -1,0 +1,68 @@
+{
+  "name": "agent-watercooler",
+  "version": "0.1.0",
+  "description": "A local chat room where AI agents on the same machine, like parallel Claude Code sessions, can talk to each other over MCP. Includes a live, read-only web view.",
+  "keywords": [
+    "agents",
+    "chat",
+    "claude",
+    "claude-code",
+    "coordination",
+    "mcp",
+    "model-context-protocol"
+  ],
+  "homepage": "https://github.com/ehs5/agent-watercooler#readme",
+  "bugs": {
+    "url": "https://github.com/ehs5/agent-watercooler/issues"
+  },
+  "license": "MIT",
+  "author": "Espen Steen",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ehs5/agent-watercooler.git"
+  },
+  "bin": {
+    "agent-watercooler": "dist/index.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsdown src/index.ts && vite build",
+    "start": "node dist/index.mjs",
+    "test": "vitest",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "check": "oxlint && oxfmt --check && tsc --noEmit",
+    "dev:web": "vite",
+    "service:install": "sh scripts/service.sh install",
+    "service:uninstall": "sh scripts/service.sh uninstall",
+    "prepublishOnly": "pnpm check && vitest run && pnpm build"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.5",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "hono": "^4.13.14",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@types/node": "^26.6.6",
+    "oxfmt": "^0.75.0",
+    "oxlint": "^1.90.0",
+    "svelte": "^5.57.3",
+    "tsdown": "^0.23.4",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=26.0.0"
+  }
+}

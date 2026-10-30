@@ -1,0 +1,416 @@
+/* Paper: light */
+:root {
+  color-scheme: light;
+  --bg: #fbfaf6;
+  --side: #fbfaf6;
+  --fg: #24292f;
+  --dim: #8c959f;
+  --line: #e6e2d8;
+  --status: #f3f1ea;
+  --hl: #fff3b0;
+  --live: #1a7f37;
+  --err: #cf222e;
+  --warn: #9a6700;
+  --tag: 10%;
+  --c0: #0969da;
+  --c1: #bc4c00;
+  --c2: #1a7f37;
+  --c3: #8250df;
+  --c4: #cf222e;
+  --c5: #1b7c83;
+  --c6: #bf3989;
+  --c7: #9a6700;
+}
+
+/* Night: dark */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #1c1b19;
+    --side: #191816;
+    --fg: #e8e4da;
+    --dim: #8a857a;
+    --line: #2f2d29;
+    --status: #161513;
+    --hl: #4a3f1c;
+    --live: #8fd694;
+    --err: #ff7b72;
+    --warn: #e3b341;
+    --tag: 16%;
+    --c0: #7ab8ff;
+    --c1: #ffa066;
+    --c2: #8fd694;
+    --c3: #c4a7ff;
+    --c4: #ff7b72;
+    --c5: #56d4dd;
+    --c6: #ff9bce;
+    --c7: #e3b341;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 13.5px;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 290px 1fr;
+  grid-template-rows: 1fr 30px;
+}
+
+/* Sidebar tree */
+.tree {
+  padding: 22px 20px;
+  border-right: 1px solid var(--line);
+  background: var(--side);
+  line-height: 1.8;
+  overflow: auto;
+}
+
+.tree .root {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+/* Archived rooms are finished, so they stay in the background */
+.tree .archived-rooms {
+  margin-top: 18px;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.tree .archived-rooms .heading {
+  color: var(--dim);
+}
+
+.tree .archived:not(.on) {
+  color: var(--dim);
+}
+
+.tree .cooler {
+  width: 13px;
+  height: 17px;
+}
+
+.tree .line {
+  display: flex;
+  align-items: center;
+  gap: 1ch;
+  white-space: nowrap;
+}
+
+.tree .g {
+  color: var(--dim);
+}
+
+.tree .name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree .on {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--c0) var(--tag), transparent);
+  color: var(--c0);
+  font-weight: 600;
+}
+
+.tree a.line:hover .name:not(.on) {
+  text-decoration: underline;
+  text-decoration-color: var(--dim);
+}
+
+.tree .live {
+  color: var(--live);
+}
+
+/* A room with no agents in it, about to be archived */
+.tree .nobody {
+  color: var(--warn);
+}
+
+.tree .time {
+  margin-left: 1ch;
+}
+
+.tree .member {
+  gap: 0;
+  color: var(--c);
+}
+
+.tree .pipe {
+  width: 6ch;
+  flex: none;
+}
+
+.tree .bot {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  margin-right: 6px;
+}
+
+.tree .dim {
+  color: var(--dim);
+}
+
+/* Conversation */
+main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+  padding: 20px 26px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.head b {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.head span {
+  color: var(--dim);
+}
+
+.log {
+  flex: 1;
+  overflow: auto;
+  margin: 0;
+  padding: 12px 26px;
+  list-style: none;
+}
+
+.ln {
+  display: grid;
+  grid-template-columns: 52px 136px 1fr;
+  gap: 12px;
+  padding: 5px 0;
+  line-height: 1.6;
+}
+
+.ln time {
+  color: var(--dim);
+}
+
+.ln .nick {
+  justify-self: start;
+  max-width: 100%;
+  height: fit-content;
+  padding: 0 6px;
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) var(--tag), transparent);
+}
+
+.ln .msg {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ln.ev .msg {
+  white-space: pre-wrap;
+}
+
+.msg p,
+.msg ul,
+.msg ol {
+  margin: 0 0 0.6em;
+}
+
+.msg > :last-child {
+  margin-bottom: 0;
+}
+
+.msg ul,
+.msg ol {
+  padding-left: 3ch;
+}
+
+.msg ul {
+  list-style: "- ";
+}
+
+.msg code {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+
+.msg a {
+  color: var(--c0);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--c0) 40%, transparent);
+}
+
+.msg .mention {
+  padding: 0 3px;
+  border-radius: 3px;
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) var(--tag), transparent);
+  font-weight: 600;
+}
+
+.ln.ev {
+  color: var(--dim);
+}
+
+.ln.ev .nick {
+  padding: 0;
+  background: none;
+  color: var(--live);
+}
+
+.ln.ev .nick.gone {
+  color: var(--dim);
+}
+
+.ln.fresh {
+  animation: highlight 2.6s ease-out;
+}
+
+@keyframes highlight {
+  from {
+    background: var(--hl);
+  }
+}
+
+.day {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0 4px;
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.day::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--line);
+}
+
+.empty {
+  padding: 5px 0;
+  color: var(--dim);
+}
+
+.error {
+  padding: 5px 0;
+  color: var(--err);
+}
+
+.prompt {
+  padding: 12px 26px 16px;
+  border-top: 1px solid var(--line);
+  color: var(--dim);
+}
+
+.cursor {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.1em;
+  vertical-align: -0.2em;
+  background: currentColor;
+  animation: blink 1s steps(2) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Status line */
+.status {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 22px;
+  align-items: center;
+  padding: 0 20px;
+  border-top: 1px solid var(--line);
+  background: var(--status);
+  font-size: 12px;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.status .live {
+  color: var(--live);
+}
+
+.status .offline {
+  color: var(--err);
+}
+
+.status .end {
+  margin-left: auto;
+}
+
+/* Narrow screens: rooms above the conversation */
+@media (max-width: 760px) {
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr 30px;
+  }
+
+  .tree {
+    max-height: 30vh;
+    padding: 14px 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .head,
+  .log,
+  .prompt {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .ln {
+    grid-template-columns: 50px 1fr;
+  }
+
+  .ln .msg {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+  }
+}
