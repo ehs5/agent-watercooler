@@ -25,14 +25,32 @@ export type RoomSummary = {
   archived: boolean;
 };
 
+// Something an agent can take, like an issue, a branch, a file or a test environment. owner is "" while it's open.
+export type Claim = {
+  id: number;
+  room: string;
+  name: string;
+  type: string;
+  description: string;
+  owner: string;
+  createdBy: string;
+  createdAt: string;
+  takenAt: string;
+};
+
 const ROOM_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const MEMBER_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
 const MAX_TOPIC_LENGTH = 200;
 const MAX_BODY_LENGTH = 8000;
 const HISTORY_ON_JOIN = 50;
 const ARCHIVE_AFTER_MS = 10 * 60 * 1000;
+const MAX_CLAIM_NAME_LENGTH = 100;
+const MAX_CLAIM_TYPE_LENGTH = 40;
+const MAX_CLAIM_DESCRIPTION_LENGTH = 500;
 
 const MESSAGE_COLUMNS = "id, room, sender, kind, body, created_at AS createdAt";
+const CLAIM_COLUMNS =
+  "id, room, name, type, description, owner, created_by AS createdBy, created_at AS createdAt, taken_at AS takenAt";
 
 /** Rooms, members and messages in SQLite, plus a live feed of new messages for waiters and streams. */
 export class ChatService {
@@ -105,7 +123,7 @@ export class ChatService {
     if (!this.roomExists(room))
       throw new Error(`Room "${room}" doesn't exist. Create it with create_room.`);
 
-    const alreadyActive: boolean = this.isActiveMember(room, member);
+    const alreadyActive: boolean = this.isInRoom(room, member);
     this.activateMember(room, member);
 
     if (!alreadyActive) this.insertMessage(room, member, "event", `${member} joined`);
@@ -182,6 +200,73 @@ export class ChatService {
     return this.db
       .prepare(`SELECT ${MESSAGE_COLUMNS} FROM messages WHERE room = ? AND id > ? ORDER BY id`)
       .all(room, afterId) as Message[];
+  }
+
+  /** Defines a claim in the room, open for anyone to take. member must be in the room, and the name must be new there. */
+  defineClaim(
+    room: string,
+    member: string,
+    name: string,
+    type: string,
+    description: string,
+  ): Claim {
+    this.assertActiveMember(room, member);
+    name = this.requireClaimText(name, "name", MAX_CLAIM_NAME_LENGTH);
+    type = this.requireClaimText(type, "type", MAX_CLAIM_TYPE_LENGTH);
+    description = description.trim();
+    if (description.length > MAX_CLAIM_DESCRIPTION_LENGTH)
+      throw new Error(`The description can be at most ${MAX_CLAIM_DESCRIPTION_LENGTH} characters.`);
+    if (this.findClaim(room, name))
+      throw new Error(`"${name}" is already a claim in room "${room}". Take it with take_claim.`);
+
+    this.db
+      .prepare(
+        "INSERT INTO claims (room, name, type, description, owner, created_by, created_at, taken_at) VALUES (?, ?, ?, ?, '', ?, ?, '')",
+      )
+      .run(room, name, type, description, member, new Date().toISOString());
+
+    this.insertMessage(room, member, "event", `${member} defined the claim ${name} (${type})`);
+    return this.getClaim(room, name);
+  }
+
+  /** Makes member the owner of an open claim. Taking your own claim again changes nothing; taking someone else's throws, naming them. */
+  takeClaim(room: string, member: string, name: string): Claim {
+    this.assertActiveMember(room, member);
+    const claim: Claim = this.getClaim(room, name);
+    if (claim.owner === member) return claim;
+    if (claim.owner)
+      throw new Error(
+        `${name} is taken by ${claim.owner}. Ask them in the room to release it, or ask the user.`,
+      );
+
+    this.db
+      .prepare("UPDATE claims SET owner = ?, taken_at = ? WHERE id = ?")
+      .run(member, new Date().toISOString(), claim.id);
+
+    this.insertMessage(room, member, "event", `${member} took ${name}`);
+    return this.getClaim(room, name);
+  }
+
+  /** Makes member's claim open again. Works after member has left the room, so a claim can be released once the work is done. */
+  releaseClaim(room: string, member: string, name: string): Claim {
+    const claim: Claim = this.getClaim(room, name);
+    if (claim.owner !== member) {
+      const holder: string = claim.owner ? `${claim.owner} has it` : "it's open";
+      throw new Error(`${name} isn't yours to release: ${holder}.`);
+    }
+
+    this.db.prepare("UPDATE claims SET owner = '', taken_at = '' WHERE id = ?").run(claim.id);
+    this.insertMessage(room, member, "event", `${member} released ${name}`);
+    return this.getClaim(room, name);
+  }
+
+  /** Returns the claims in one room or (room "") all rooms, in the order they were defined. */
+  listClaims(room: string = ""): Claim[] {
+    if (!room)
+      return this.db.prepare(`SELECT ${CLAIM_COLUMNS} FROM claims ORDER BY id`).all() as Claim[];
+    return this.db
+      .prepare(`SELECT ${CLAIM_COLUMNS} FROM claims WHERE room = ? ORDER BY id`)
+      .all(room) as Claim[];
   }
 
   /** Calls listener for every new message and event. Returns a function that stops listening. */
@@ -295,7 +380,7 @@ export class ChatService {
   }
 
   /** True if member is currently in the room. */
-  private isActiveMember(room: string, member: string): boolean {
+  isInRoom(room: string, member: string): boolean {
     return (
       this.db
         .prepare("SELECT 1 FROM members WHERE room = ? AND member = ? AND active = 1")
@@ -307,8 +392,33 @@ export class ChatService {
   private assertActiveMember(room: string, member: string): void {
     if (!this.roomExists(room))
       throw new Error(`Room "${room}" doesn't exist. Use list_rooms to see the rooms.`);
-    if (!this.isActiveMember(room, member))
+    if (!this.isInRoom(room, member))
       throw new Error(`${member} isn't in room "${room}". Join it with join_room.`);
+  }
+
+  /** Returns the claim with this name in the room, or undefined. */
+  private findClaim(room: string, name: string): Claim | undefined {
+    return this.db
+      .prepare(`SELECT ${CLAIM_COLUMNS} FROM claims WHERE room = ? AND name = ?`)
+      .get(room, name.trim()) as Claim | undefined;
+  }
+
+  /** Returns the claim with this name in the room, or throws if there is none. */
+  private getClaim(room: string, name: string): Claim {
+    if (!this.roomExists(room))
+      throw new Error(`Room "${room}" doesn't exist. Use list_rooms to see the rooms.`);
+    const claim: Claim | undefined = this.findClaim(room, name);
+    if (!claim) throw new Error(`There's no claim "${name}" in room "${room}". See list_claims.`);
+    return claim;
+  }
+
+  /** Returns value trimmed, or throws if it's empty or longer than max. label names it in the error. */
+  private requireClaimText(value: string, label: string, max: number): string {
+    const text: string = value.trim();
+    if (!text) throw new Error(`The claim needs a ${label}.`);
+    if (text.length > max)
+      throw new Error(`The claim's ${label} can be at most ${max} characters.`);
+    return text;
   }
 
   /** Throws unless member is a valid name. */

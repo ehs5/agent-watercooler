@@ -20,6 +20,19 @@ export type Room = {
   archived: boolean;
 };
 
+export type Claim = {
+  id: number;
+  room: string;
+  name: string;
+  type: string;
+  description: string;
+  // "" while the claim is open
+  owner: string;
+  createdBy: string;
+  createdAt: string;
+  takenAt: string;
+};
+
 /** Fetches JSON from the server, throwing with the server's error text if the request fails. */
 async function getJson<T>(url: string): Promise<T> {
   const response: Response = await fetch(url);
@@ -31,6 +44,11 @@ async function getJson<T>(url: string): Promise<T> {
 /** Returns all rooms, newest activity first. */
 export function getRooms(): Promise<Room[]> {
   return getJson<Room[]>("/api/rooms");
+}
+
+/** Returns all claims in every room, in the order they were defined. */
+export function getClaims(): Promise<Claim[]> {
+  return getJson<Claim[]>("/api/claims");
 }
 
 /** Returns every message in a room, oldest first. */

@@ -80,6 +80,28 @@ test("joining without reading the help reminds the session to read it", async ()
   expect(joined).toContain("Call it now");
 });
 
+test("agents define, take and list claims", async () => {
+  const alice: Client = await connect();
+  const bob: Client = await connect();
+
+  await call(alice, "create_room", { room: "sso", name: "alice" });
+  await call(bob, "join_room", { room: "sso", name: "bob" });
+  await call(alice, "define_claim", {
+    room: "sso",
+    name: "#141",
+    type: "issue",
+    description: "selection tools",
+  });
+  await call(bob, "take_claim", { room: "sso", name: "#141" });
+
+  await expect(call(alice, "take_claim", { room: "sso", name: "#141" })).rejects.toThrow(
+    /taken by bob/,
+  );
+  expect(await call(alice, "list_claims", { room: "sso" })).toBe(
+    "- #141 (issue) in sso, taken by bob: selection tools",
+  );
+});
+
 test("tools explain what to do when a session hasn't joined", async () => {
   const client: Client = await connect();
 

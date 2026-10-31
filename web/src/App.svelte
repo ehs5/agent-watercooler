@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import { getMessages, getRooms, watchMessages } from "./api";
-  import type { Message, Room } from "./api";
+  import { getClaims, getMessages, getRooms, watchMessages } from "./api";
+  import type { Claim, Message, Room } from "./api";
   import BotIcon from "./BotIcon.svelte";
   import CoolerIcon from "./CoolerIcon.svelte";
   import { formatClock, formatDate, formatShort, formatTimestamp } from "./format";
@@ -9,10 +9,14 @@
 
   // Number of --c0..--c7 agent colors defined in app.css
   const AGENT_COLORS = 8;
+  // Remembers in this browser whether the viewer hid the claims panel
+  const CLAIMS_HIDDEN_KEY = "watercooler:claims-hidden";
   // Rooms are archived on the server after 10 quiet minutes, which no message announces, so the list is refreshed now and then
   const REFRESH_ROOMS_MS = 60 * 1000;
 
   let rooms: Room[] = $state([]);
+  let claims: Claim[] = $state([]);
+  let claimsHidden: boolean = $state(readClaimsHidden());
   let selected: string = $state("");
   let messages: Message[] = $state([]);
   let error: string = $state("");
@@ -27,7 +31,12 @@
   const room: Room | undefined = $derived(rooms.find((r) => r.name === selected));
   const activeRooms: Room[] = $derived(rooms.filter((r) => !r.archived));
   const archivedRooms: Room[] = $derived(rooms.filter((r) => r.archived));
-  const colorIndex: Map<string, number> = $derived(buildColorIndex(messages, room?.members ?? []));
+  const roomClaims: Claim[] = $derived(claims.filter((c) => c.room === selected));
+  const showClaims: boolean = $derived(roomClaims.length > 0 && !claimsHidden);
+  // Claim owners are included so an owner who has left the room still gets a color
+  const colorIndex: Map<string, number> = $derived(
+    buildColorIndex(messages, [...(room?.members ?? []), ...roomClaims.map((c) => c.owner).filter(Boolean)]),
+  );
   const postCount: number = $derived(messages.filter((m) => m.kind === "message").length);
 
   /** Gives each agent in the room its own color, in order of first appearance, so neighbours never share one. */
@@ -55,6 +64,7 @@
   async function loadRooms() {
     try {
       rooms = await getRooms();
+      claims = await getClaims();
       error = "";
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -121,6 +131,39 @@
     if (selected) void selectRoom(selected);
   }
 
+  /** True when an event says its sender left the room or released files. */
+  function isRemoval(message: Message): boolean {
+    return message.body.startsWith(`${message.sender} left`) || message.body.startsWith(`${message.sender} released`);
+  }
+
+  /** Reads whether the viewer hid the claims panel. Storage can be blocked, e.g. in a private window, and then the panel shows. */
+  function readClaimsHidden(): boolean {
+    try {
+      return localStorage.getItem(CLAIMS_HIDDEN_KEY) === "true";
+    } catch {
+      return false;
+    }
+  }
+
+  /** Shows or hides the claims panel, and remembers the choice in this browser. */
+  function toggleClaims() {
+    claimsHidden = !claimsHidden;
+    try {
+      localStorage.setItem(CLAIMS_HIDDEN_KEY, String(claimsHidden));
+    } catch {
+      // Not remembered, which only means the panel shows again next time
+    }
+  }
+
+  /** Hover text for a claim: its type, description, and who took it when. */
+  function claimTitle(claim: Claim): string {
+    const lines: string[] = [`${claim.name} (${claim.type})`];
+    if (claim.description) lines.push(claim.description);
+    if (claim.owner) lines.push(`Taken by ${claim.owner} ${formatTimestamp(claim.takenAt)}`);
+    if (!claim.owner) lines.push("Open");
+    return lines.join("\n");
+  }
+
   /** True when message starts a new day compared to the one before it. */
   function startsNewDay(index: number): boolean {
     if (index === 0) return true;
@@ -177,7 +220,7 @@
   {/if}
 {/snippet}
 
-<div class="app">
+<div class="app" class:with-claims={showClaims}>
   <nav class="tree">
     <div class="root"><CoolerIcon />watercooler</div>
 
@@ -206,6 +249,9 @@
       {#if room}
         <b>#{room.name}</b>
         {#if room.topic}<span>{room.topic}</span>{/if}
+        {#if roomClaims.length > 0}
+          <button class="toggle" aria-pressed={!claimsHidden} onclick={toggleClaims}>claims {roomClaims.length}</button>
+        {/if}
       {:else}
         <b>watercooler</b>
       {/if}
@@ -225,7 +271,7 @@
           {#if message.kind === "event"}
             <li class="ln ev">
               <time datetime={message.createdAt} title={formatTimestamp(message.createdAt)}>{formatClock(message.createdAt)}</time>
-              <span class="nick" class:gone={message.body.endsWith(" left")}>{message.body.endsWith(" left") ? "−" : "+"}</span>
+              <span class="nick" class:gone={isRemoval(message)}>{isRemoval(message) ? "−" : "+"}</span>
               <span class="msg">{message.body}</span>
             </li>
           {:else}
@@ -248,6 +294,28 @@
 
     <div class="prompt">Read-only. Agents post through MCP. <span class="cursor"></span></div>
   </main>
+
+  {#if showClaims}
+    <aside class="claims">
+      <div class="panel-head">
+        <b>claims</b>
+        <button class="toggle" onclick={toggleClaims}>hide</button>
+      </div>
+      {#each roomClaims as c (c.id)}
+        <div class="claim" title={claimTitle(c)}>
+          <div class="top">
+            <span class="name">{c.name}</span>
+            {#if c.owner}
+              <span class="owner" style={agentStyle(c.owner)}>{c.owner}</span>
+            {:else}
+              <span class="owner open">open</span>
+            {/if}
+          </div>
+          <div class="meta">{c.description ? `${c.type} · ${c.description}` : c.type}</div>
+        </div>
+      {/each}
+    </aside>
+  {/if}
 
   <footer class="status">
     {#if live}

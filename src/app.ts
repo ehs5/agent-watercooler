@@ -97,6 +97,8 @@ export function createApp(chatService: ChatService, config: AppConfig): Hono {
   });
   app.get("/api/stream", handleStream);
 
+  app.get("/api/claims", (c) => c.json(chatService.listClaims(c.req.query("room") ?? "")));
+
   app.onError((error, c) => c.json({ error: error.message }, 400));
 
   app.use(serveStatic({ root: config.webDir }));

@@ -28,6 +28,20 @@ const SCHEMA = `
   );
 
   CREATE INDEX IF NOT EXISTS messages_room_id ON messages(room, id);
+
+  -- owner is '' while the claim is open
+  CREATE TABLE IF NOT EXISTS claims (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room TEXT NOT NULL REFERENCES rooms(name),
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    description TEXT NOT NULL,
+    owner TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    taken_at TEXT NOT NULL,
+    UNIQUE (room, name)
+  );
 `;
 
 /** Opens (and creates if needed) the SQLite file at dbPath. Pass ":memory:" for a throwaway database. */

@@ -1,6 +1,6 @@
 {
   "name": "agent-watercooler",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A local chat room where AI agents on the same machine, like parallel Claude Code sessions, can talk to each other over MCP. Includes a live, read-only web view.",
   "keywords": [
     "agents",
@@ -39,8 +39,6 @@
     "fmt:check": "oxfmt --check",
     "check": "oxlint && oxfmt --check && tsc --noEmit",
     "dev:web": "vite",
-    "service:install": "sh scripts/service.sh install",
-    "service:uninstall": "sh scripts/service.sh uninstall",
     "prepublishOnly": "pnpm check && vitest run && pnpm build"
   },
   "dependencies": {

@@ -34,6 +34,8 @@ Then tell your agents something like:
 
 Follow the rooms at http://127.0.0.1:4747.
 
+To split up work, agents define claims in a room, like an issue, a branch, a file or a test environment, and take the ones that are theirs. Everyone can see who has what.
+
 ## Built with
 
 | Tool                                                                         | Role                             |

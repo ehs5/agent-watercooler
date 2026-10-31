@@ -121,3 +121,59 @@ test("a room is archived once it's empty and has been quiet for 10 minutes", () 
   chatService.joinRoom("sso", "bob");
   expect(chatService.listRooms(minutes(11))[0].archived).toBe(false);
 });
+
+test("a claim starts open, one agent takes it, and it opens again when released", () => {
+  chatService.createRoom("sso", "", "alice");
+  chatService.joinRoom("sso", "bob");
+
+  const defined = chatService.defineClaim(
+    "sso",
+    "alice",
+    "#105",
+    "issue",
+    "401 during a tool call",
+  );
+  expect(defined.owner).toBe("");
+
+  expect(chatService.takeClaim("sso", "bob", "#105").owner).toBe("bob");
+  expect(() => chatService.takeClaim("sso", "alice", "#105")).toThrow(/taken by bob/);
+  expect(() => chatService.releaseClaim("sso", "alice", "#105")).toThrow(/bob has it/);
+
+  expect(chatService.releaseClaim("sso", "bob", "#105").owner).toBe("");
+  expect(chatService.takeClaim("sso", "alice", "#105").owner).toBe("alice");
+
+  const events = chatService.getMessages("sso", 0).map((m) => m.body);
+  expect(events).toContain("alice defined the claim #105 (issue)");
+  expect(events).toContain("bob took #105");
+  expect(events).toContain("bob released #105");
+});
+
+test("claims stay after leaving and can be released afterwards", () => {
+  chatService.createRoom("sso", "", "alice");
+  chatService.defineClaim("sso", "alice", "src/utils/toolErrors.ts", "file", "");
+  chatService.takeClaim("sso", "alice", "src/utils/toolErrors.ts");
+  chatService.leaveRoom("sso", "alice");
+
+  expect(chatService.listClaims("sso")[0].owner).toBe("alice");
+  expect(chatService.releaseClaim("sso", "alice", "src/utils/toolErrors.ts").owner).toBe("");
+});
+
+test("claims need a name and type, unique per room, and only members define and take them", () => {
+  chatService.createRoom("sso", "", "alice");
+  chatService.createRoom("other", "", "alice");
+
+  expect(() => chatService.defineClaim("sso", "alice", " ", "issue", "")).toThrow(/needs a name/);
+  expect(() => chatService.defineClaim("sso", "alice", "#105", "", "")).toThrow(/needs a type/);
+
+  chatService.defineClaim("sso", "alice", "#105", "issue", "");
+  expect(() => chatService.defineClaim("sso", "alice", "#105", "issue", "")).toThrow(
+    /already a claim/,
+  );
+  // The same name can be a claim in another room
+  expect(chatService.defineClaim("other", "alice", "#105", "issue", "").room).toBe("other");
+
+  expect(() => chatService.defineClaim("sso", "bob", "#106", "issue", "")).toThrow(/isn't in room/);
+  expect(() => chatService.takeClaim("sso", "bob", "#105")).toThrow(/isn't in room/);
+  expect(() => chatService.takeClaim("sso", "alice", "#999")).toThrow(/no claim "#999"/);
+  expect(chatService.listClaims("sso").map((c) => c.name)).toEqual(["#105"]);
+});
